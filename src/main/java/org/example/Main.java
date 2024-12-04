@@ -6,6 +6,8 @@ import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.*;
+import com.jcraft.jsch.*;
+import java.io.InputStream;
 
 
 public class Main {
@@ -95,6 +97,7 @@ public class Main {
                     listImages();
                     break;
                 case 9:
+                    executeCondorStatus();
                     break;
                 case 99:
                     System.out.println("Exiting...");
@@ -229,5 +232,60 @@ public class Main {
             System.out.printf("Failed to list images: %s\n", e.getMessage());
         }
     }
+
+    public static void executeCondorStatus() {
+        // EC2 인스턴스 정보 설정
+        String host = "ec2-13-125-60-75.ap-northeast-2.compute.amazonaws.com";
+        String user = "ec2-user";
+        //String privateKeyPath = "heeju-key.pem";
+        String privateKeyPath = "C:\\Users\\heeju\\heeju-key.pem";
+
+
+        try {
+            // JSch 객체 생성
+            JSch jsch = new JSch();
+            jsch.addIdentity(privateKeyPath);  // 개인 키 파일 경로 추가
+
+            // SSH 세션 생성
+            Session session = jsch.getSession(user, host, 22);
+            session.setConfig("StrictHostKeyChecking", "no");  // 호스트 키 확인 비활성화
+            session.connect();  // 연결
+
+            // SSH 채널 생성 (exec 채널을 통해 명령어 실행)
+            ChannelExec channel = (ChannelExec) session.openChannel("exec");
+            channel.setCommand("condor_status");  // 실행할 명령어 설정
+            channel.setErrStream(System.err);  // 오류 출력 스트림 설정
+
+            // 명령어 실행 후 결과를 읽기 위한 InputStream
+            InputStream in = channel.getInputStream();
+            channel.connect();  // 명령어 실행
+
+            // 결과 출력
+            byte[] buffer = new byte[1024];
+            while (true) {
+                while (in.available() > 0) {
+                    int i = in.read(buffer, 0, 1024);
+                    if (i < 0)
+                        break;
+                    System.out.print(new String(buffer, 0, i));  // 명령어 출력 결과 출력
+                }
+                if (channel.isClosed()) {
+                    if (in.available() > 0)
+                        continue;
+                    System.out.println("Exit status: " + channel.getExitStatus());  // 종료 상태 출력
+                    break;
+                }
+                Thread.sleep(1000);  // 1초 대기
+            }
+
+            // 채널 및 세션 종료
+            channel.disconnect();
+            session.disconnect();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 
 }
