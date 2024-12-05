@@ -8,6 +8,12 @@ import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.*;
 import com.jcraft.jsch.*;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
 
 
 public class Main {
@@ -48,8 +54,8 @@ public class Main {
             System.out.println("  3. start instance               4. available regions      ");
             System.out.println("  5. stop instance                6. create instance        ");
             System.out.println("  7. reboot instance              8. list images            ");
-            System.out.println("  9. execute condor_status                                   ");
-            System.out.println("                                 99. quit                   ");
+            System.out.println("  9. execute condor_status       10. AutoScaling            ");
+            System.out.println("                                  99. quit                   ");
             System.out.println("------------------------------------------------------------");
 
             System.out.print("Enter an integer: ");
@@ -98,6 +104,9 @@ public class Main {
                     break;
                 case 9:
                     executeCondorStatus();
+                    break;
+                case 10:
+                    autoScaling();
                     break;
                 case 99:
                     System.out.println("Exiting...");
@@ -235,9 +244,8 @@ public class Main {
 
     public static void executeCondorStatus() {
         // EC2 인스턴스 정보 설정
-        String host = "ec2-13-125-60-75.ap-northeast-2.compute.amazonaws.com";
+        String host = "ec2-3-38-98-219.ap-northeast-2.compute.amazonaws.com";
         String user = "ec2-user";
-        //String privateKeyPath = "heeju-key.pem";
         String privateKeyPath = "C:\\Users\\heeju\\heeju-key.pem";
 
 
@@ -284,6 +292,89 @@ public class Main {
 
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    public static void autoScaling() {
+        System.out.println("Starting auto-scaling...");
+
+        try {
+            String scriptResult = executeShellScript("/home/ec2-user/autoscaling.sh");
+            String[] results = scriptResult.split("\n");
+
+            int slots = Integer.parseInt(results[0].trim());
+            int jobs = Integer.parseInt(results[1].trim());
+            List<String> assignedNodes = Arrays.asList(results[2].trim().split(","));
+
+            if (jobs > slots) {
+                System.out.println("Scale out: Creating a new instance...");
+                createInstance("ami-064d68c52313d6d29"); // worker 이미지 기반 인스턴스 생성
+            } else if (jobs < slots) {
+                System.out.println("Scale in: Stopping unnecessary instances...");
+                scaleInInstances(assignedNodes);
+            } else {
+                System.out.println("System stable: No scaling required.");
+            }
+        } catch (Exception e) {
+            System.out.println("Error in auto-scaling: " + e.getMessage());
+        }
+    }
+
+    private static String executeShellScript(String scriptName) throws Exception {
+        String host = "ec2-3-38-98-219.ap-northeast-2.compute.amazonaws.com";
+        String user = "ec2-user";
+        String privateKeyPath = "C:\\Users\\heeju\\heeju-key.pem";
+
+        JSch jsch = new JSch();
+        jsch.addIdentity(privateKeyPath);
+
+        Session session = jsch.getSession(user, host, 22);
+        session.setConfig("StrictHostKeyChecking", "no");
+        session.connect();
+
+        ChannelExec channel = (ChannelExec) session.openChannel("exec");
+        channel.setCommand("/bin/bash " + scriptName);
+        InputStream in = channel.getInputStream();
+        channel.connect();
+
+        StringBuilder output = new StringBuilder();
+        byte[] buffer = new byte[1024];
+        int bytesRead;
+        while ((bytesRead = in.read(buffer)) != -1) {
+            output.append(new String(buffer, 0, bytesRead));
+        }
+
+        channel.disconnect();
+        session.disconnect();
+
+        return output.toString().trim();
+    }
+
+    private static void scaleInInstances(List<String> assignedNodes) {
+        DescribeInstancesRequest request = new DescribeInstancesRequest()
+                .withFilters(new Filter().withName("instance-state-name").withValues("running"));
+        DescribeInstancesResult response = ec2.describeInstances(request);
+
+        List<Instance> runningInstances = new ArrayList<>();
+        for (Reservation reservation : response.getReservations()) {
+            runningInstances.addAll(reservation.getInstances());
+        }
+
+        // 이미 중지된 인스턴스를 추적하기 위한 Set 생성
+        Set<String> stoppedInstances = new HashSet<>();
+
+        // 인스턴스 순회
+        for (Instance instance : runningInstances) {
+            String instanceId = instance.getInstanceId();
+            String privateIP = instance.getPrivateIpAddress();
+
+            // Main 노드와 Assigned 노드를 제외하고 처리
+            if (!assignedNodes.contains(privateIP)
+                    && !instanceId.equals("i-0e2da5fd0cf96ff18")  // Main 노드 제외
+                    && !stoppedInstances.contains(instanceId)) {
+                stopInstance(instanceId);
+                stoppedInstances.add(instanceId); // 중지된 인스턴스 기록
+            }
         }
     }
 
