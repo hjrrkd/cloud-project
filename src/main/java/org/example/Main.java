@@ -55,7 +55,7 @@ public class Main {
             System.out.println("  5. stop instance                6. create instance        ");
             System.out.println("  7. reboot instance              8. list images            ");
             System.out.println("  9. execute condor_status       10. AutoScaling            ");
-            System.out.println("                                  99. quit                   ");
+            System.out.println(" 11. condor_q                    99. quit                   ");
             System.out.println("------------------------------------------------------------");
 
             System.out.print("Enter an integer: ");
@@ -107,6 +107,9 @@ public class Main {
                     break;
                 case 10:
                     autoScaling();
+                    break;
+                case 11:
+                    executeCondorQ();
                     break;
                 case 99:
                     System.out.println("Exiting...");
@@ -244,7 +247,7 @@ public class Main {
 
     public static void executeCondorStatus() {
         // EC2 인스턴스 정보 설정
-        String host = "ec2-3-38-98-219.ap-northeast-2.compute.amazonaws.com";
+        String host = "ec2-3-34-50-253.ap-northeast-2.compute.amazonaws.com";
         String user = "ec2-user";
         String privateKeyPath = "C:\\Users\\heeju\\heeju-key.pem";
 
@@ -321,7 +324,7 @@ public class Main {
     }
 
     private static String executeShellScript(String scriptName) throws Exception {
-        String host = "ec2-3-38-98-219.ap-northeast-2.compute.amazonaws.com";
+        String host = "ec2-3-34-50-253.ap-northeast-2.compute.amazonaws.com";
         String user = "ec2-user";
         String privateKeyPath = "C:\\Users\\heeju\\heeju-key.pem";
 
@@ -377,6 +380,60 @@ public class Main {
             }
         }
     }
+
+    public static void executeCondorQ() {
+        // EC2 인스턴스 정보 설정
+        String host = "ec2-3-34-50-253.ap-northeast-2.compute.amazonaws.com";
+        String user = "ec2-user";
+        String privateKeyPath = "C:\\Users\\heeju\\heeju-key.pem";
+
+        try {
+            // JSch 객체 생성
+            JSch jsch = new JSch();
+            jsch.addIdentity(privateKeyPath); // 개인 키 파일 경로 추가
+
+            // SSH 세션 생성
+            Session session = jsch.getSession(user, host, 22);
+            session.setConfig("StrictHostKeyChecking", "no"); // 호스트 키 확인 비활성화
+            session.connect(); // 연결
+
+            // SSH 채널 생성 (exec 채널을 통해 명령어 실행)
+            ChannelExec channel = (ChannelExec) session.openChannel("exec");
+            channel.setCommand("condor_q"); // 실행할 명령어 설정
+            channel.setErrStream(System.err); // 오류 출력 스트림 설정
+
+            // 명령어 실행 후 결과를 읽기 위한 InputStream
+            InputStream in = channel.getInputStream();
+            channel.connect(); // 명령어 실행
+
+            // 결과 출력
+            byte[] buffer = new byte[1024];
+            while (true) {
+                while (in.available() > 0) {
+                    int i = in.read(buffer, 0, 1024);
+                    if (i < 0)
+                        break;
+                    System.out.print(new String(buffer, 0, i)); // 명령어 출력 결과 출력
+                }
+                if (channel.isClosed()) {
+                    if (in.available() > 0)
+                        continue;
+                    System.out.println("Exit status: " + channel.getExitStatus()); // 종료 상태 출력
+                    break;
+                }
+                Thread.sleep(1000); // 1초 대기
+            }
+
+
+            channel.disconnect();
+            session.disconnect();
+
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 
 
 }
