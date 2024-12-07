@@ -1,0 +1,7 @@
+executable=/home/ec2-user/my_script.sh
+universe=vanilla
+output=out.txt
+error=error.txt
+log=log.txt
+
+queue 5
