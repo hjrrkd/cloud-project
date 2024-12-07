@@ -5,27 +5,12 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.ec2.model.*;
 import software.amazon.awssdk.services.ssm.SsmClient;
-import software.amazon.awssdk.services.ssm.model.SendCommandRequest;
-import software.amazon.awssdk.services.ssm.model.SendCommandResponse;
-import software.amazon.awssdk.services.ssm.model.GetCommandInvocationRequest;
-import software.amazon.awssdk.services.ssm.model.GetCommandInvocationResponse;
-import software.amazon.awssdk.services.ssm.model.CommandInvocationStatus;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Scanner;
+import software.amazon.awssdk.services.ssm.model.*;
 import java.util.concurrent.TimeUnit;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Arrays;
-
+import java.util.*;
 
 
 public class Main {
-
 
     private static Ec2Client ec2;
     private static SsmClient ssm;
@@ -33,22 +18,20 @@ public class Main {
     private static void init() {/*throws Exception*/
         ProfileCredentialsProvider credentialsProvider = ProfileCredentialsProvider.create();
 
-
         // 리전을 ap-northeast-2로 고정
         Region region = Region.AP_NORTHEAST_2;
 
-        // EC2 클라이언트 초기화
+        // EC2 클라이언트
         ec2 = Ec2Client.builder()
                 .credentialsProvider(credentialsProvider)
                 .region(region)
                 .build();
 
-        // SSM 클라이언트 초기화
+        // SSM 클라이언트
         ssm = SsmClient.builder()
                 .credentialsProvider(credentialsProvider)
                 .region(region)
                 .build();
-
     }
 
     public static void main(String[] args) throws Exception {
@@ -135,10 +118,11 @@ public class Main {
         }
     }
 
+    // 인스턴스 리스트 출력
     public static void listInstances() {
         System.out.println("Listing instances...");
 
-        try (Ec2Client ec2 = Ec2Client.create()) { // AWS SDK v2는 클라이언트를 자동 닫도록 try-with-resources를 사용
+        try (Ec2Client ec2 = Ec2Client.create()) {
             String nextToken = null;
 
             do {
@@ -168,17 +152,15 @@ public class Main {
         }
     }
 
+    // 가용 영역(Zones) 출력
     public static void availableZones() {
         System.out.println("Available zones...");
 
-        try (Ec2Client ec2 = Ec2Client.create()) { // 클라이언트 생성
-            // 요청 객체 생성
+        try (Ec2Client ec2 = Ec2Client.create()) {
+
             DescribeAvailabilityZonesRequest request = DescribeAvailabilityZonesRequest.builder().build();
 
-            // 응답 받기
             DescribeAvailabilityZonesResponse response = ec2.describeAvailabilityZones(request);
-
-            // 가용 영역 출력
             for (AvailabilityZone zone : response.availabilityZones()) {
                 System.out.printf("[Zone] %s, [Region] %s, [Zone Name] %s\n",
                         zone.zoneId(), zone.regionName(), zone.zoneName());
@@ -189,38 +171,36 @@ public class Main {
         }
     }
 
+    // 인스턴스 시작
     public static void startInstance(String instanceId) {
         System.out.printf("Starting instance: %s\n", instanceId);
 
-        try (Ec2Client ec2 = Ec2Client.create()) { // 클라이언트 생성
-            // 요청 객체 생성
+        try (Ec2Client ec2 = Ec2Client.create()) {
+
             StartInstancesRequest request = StartInstancesRequest.builder()
                     .instanceIds(instanceId)
                     .build();
 
-            // 인스턴스 시작 요청
             StartInstancesResponse response = ec2.startInstances(request);
 
-            // 성공 메시지 출력
             System.out.printf("Successfully started instance: %s\n", instanceId);
         } catch (Exception e) {
             System.out.printf("Failed to start instance: %s\n", e.getMessage());
         }
     }
 
+    // 인스턴스 중지
     public static void stopInstance(String instanceId) {
         System.out.printf("Stopping instance: %s\n", instanceId);
 
-        try (Ec2Client ec2 = Ec2Client.create()) { // 클라이언트 생성
-            // 요청 객체 생성
+        try (Ec2Client ec2 = Ec2Client.create()) {
+
             StopInstancesRequest request = StopInstancesRequest.builder()
                     .instanceIds(instanceId)
                     .build();
 
-            // 인스턴스 중지 요청
             StopInstancesResponse response = ec2.stopInstances(request);
 
-            // 성공 메시지 출력
             System.out.printf("Successfully stopped instance: %s\n", instanceId);
             System.out.printf("Current state: %s\n",
                     response.stoppingInstances().get(0).currentState().name());
@@ -229,22 +209,21 @@ public class Main {
         }
     }
 
+    // 인스턴스 생성
     public static void createInstance(String amiId) {
         System.out.printf("Creating instance in region: ap-southeast-2 with AMI: %s\n", amiId);
 
-        try (Ec2Client ec2 = Ec2Client.create()) { // 클라이언트 생성
-            // 요청 객체 생성
+        try (Ec2Client ec2 = Ec2Client.create()) {
+
             RunInstancesRequest request = RunInstancesRequest.builder()
                     .imageId(amiId)
-                    .instanceType(InstanceType.T2_MICRO) // 인스턴스 유형 설정
-                    .minCount(1) // 최소 인스턴스 개수
-                    .maxCount(1) // 최대 인스턴스 개수
+                    .instanceType(InstanceType.T2_MICRO)
+                    .minCount(1)
+                    .maxCount(1)
                     .build();
 
-            // 인스턴스 생성 요청
             RunInstancesResponse response = ec2.runInstances(request);
 
-            // 생성된 인스턴스 ID 가져오기
             String instanceId = response.instances().get(0).instanceId();
             System.out.printf("Successfully created instance: %s\n", instanceId);
         } catch (Exception e) {
@@ -252,66 +231,58 @@ public class Main {
         }
     }
 
+    // 인스턴스 재부팅
     public static void rebootInstance(String instanceId) {
         System.out.printf("Rebooting instance: %s\n", instanceId);
 
-        try (Ec2Client ec2 = Ec2Client.create()) { // 클라이언트 생성
-            // 요청 객체 생성
+        try (Ec2Client ec2 = Ec2Client.create()) {
+
             RebootInstancesRequest request = RebootInstancesRequest.builder()
                     .instanceIds(instanceId)
                     .build();
 
-            // 인스턴스 재부팅 요청
             ec2.rebootInstances(request);
 
-            // 성공 메시지 출력
             System.out.printf("Successfully rebooted instance: %s\n", instanceId);
         } catch (Exception e) {
             System.out.printf("Failed to reboot instance: %s\n", e.getMessage());
         }
     }
 
+    // 가용 리전 출력
     public static void availableRegions() {
         System.out.println("Available regions...");
 
-        // DescribeRegionsRequest 생성
         DescribeRegionsRequest request = (DescribeRegionsRequest) DescribeRegionsRequest.builder().build();
 
         try {
-            // EC2의 지역 정보 가져오기
             DescribeRegionsResponse result = ec2.describeRegions(request);
 
-            // 지역 및 엔드포인트 출력
             for (software.amazon.awssdk.services.ec2.model.Region region : result.regions()) {
                 System.out.printf("[Region] %s, [Endpoint] %s\n",
                         region.regionName(), region.endpoint());
             }
         } catch (Exception e) {
-            // 예외 처리
             System.out.printf("Failed to fetch regions: %s\n", e.getMessage());
         }
     }
 
-
+    // EC2 이미지 출력
     public static void listImages() {
         System.out.println("Listing images....");
 
-        try (Ec2Client ec2 = Ec2Client.create()) { // 클라이언트 생성
-            // 필터 설정
+        try (Ec2Client ec2 = Ec2Client.create()) {
             Filter filter = Filter.builder()
                     .name("name")
                     .values("aws-htcondor-worker")
                     .build();
 
-            // 요청 객체 생성
             DescribeImagesRequest request = DescribeImagesRequest.builder()
                     .filters(filter)
                     .build();
 
-            // 이미지 목록 요청
             DescribeImagesResponse response = ec2.describeImages(request);
 
-            // 이미지 정보 출력
             for (Image image : response.images()) {
                 System.out.printf("[ImageID] %s, [Name] %s, [Owner] %s\n",
                         image.imageId(), image.name(), image.ownerId());
@@ -321,29 +292,30 @@ public class Main {
         }
     }
 
+    // condor_status 실행
     public static void executeCondorStatus() {
-        String instanceId = "i-0e2da5fd0cf96ff18"; // 실행할 EC2 인스턴스 ID
+        String instanceId = "i-0e2da5fd0cf96ff18";
         String command = "condor_status";
 
         try (SsmClient ssmClient = SsmClient.create()) {
-            // SSM 명령 요청
+
+            // SSM 명령 요청 설정
             Map<String, List<String>> parameters = new HashMap<>();
-            parameters.put("commands", Arrays.asList(command));
+            parameters.put("commands", Arrays.asList(command)); // 실행 명령 등록
 
             SendCommandRequest sendCommandRequest = SendCommandRequest.builder()
                     .instanceIds(instanceId)
-                    .documentName("AWS-RunShellScript") // Shell 명령 실행
-                    .parameters(parameters)  // 수동으로 만든 parameters 맵 사용
+                    .documentName("AWS-RunShellScript") // ShellScript 실행을 위한 SSM 문서
+                    .parameters(parameters) // 명령 전달
                     .build();
 
-            // 명령 실행
+            // SSM 명령 실행
             SendCommandResponse sendCommandResponse = ssmClient.sendCommand(sendCommandRequest);
             String commandId = sendCommandResponse.command().commandId();
 
-            // 결과 조회를 위한 대기
-            Thread.sleep(5000); // 명령 실행 완료를 기다림 (필요에 따라 조정)
+            Thread.sleep(1000);
 
-            // 명령 결과 요청
+            // 실행 결과 확인
             GetCommandInvocationRequest invocationRequest = GetCommandInvocationRequest.builder()
                     .commandId(commandId)
                     .instanceId(instanceId)
@@ -351,7 +323,6 @@ public class Main {
 
             GetCommandInvocationResponse invocationResponse = ssmClient.getCommandInvocation(invocationRequest);
 
-            // 명령 결과 출력
             System.out.println("Command Output:");
             System.out.println(invocationResponse.standardOutputContent());
 
@@ -361,29 +332,30 @@ public class Main {
         }
     }
 
+    // condor_q 실행
     public static void executeCondorQ() {
-        String instanceId = "i-0e2da5fd0cf96ff18"; // EC2 인스턴스 ID
+        String instanceId = "i-0e2da5fd0cf96ff18";
         String command = "condor_q";
 
         try (SsmClient ssmClient = SsmClient.create()) {
-            // SSM 명령 요청
+
+            // SSM 명령 요청 설정
             Map<String, List<String>> parameters = new HashMap<>();
-            parameters.put("commands", Arrays.asList(command));
+            parameters.put("commands", Arrays.asList(command)); // 실행 명령 등록
 
             SendCommandRequest sendCommandRequest = SendCommandRequest.builder()
                     .instanceIds(instanceId)
-                    .documentName("AWS-RunShellScript") // Shell 명령 실행
-                    .parameters(parameters)
+                    .documentName("AWS-RunShellScript") // ShellScript 실행을 위한 SSM 문서
+                    .parameters(parameters) // 명령 전달
                     .build();
 
             // 명령 실행
             SendCommandResponse sendCommandResponse = ssmClient.sendCommand(sendCommandRequest);
             String commandId = sendCommandResponse.command().commandId();
 
-            // 결과 조회를 위한 대기
-            Thread.sleep(5000); // 명령 실행 완료를 기다림 (필요에 따라 조정)
+            Thread.sleep(1000);
 
-            // 명령 결과 요청
+            // 실행 결과 확인
             GetCommandInvocationRequest invocationRequest = GetCommandInvocationRequest.builder()
                     .commandId(commandId)
                     .instanceId(instanceId)
@@ -391,12 +363,10 @@ public class Main {
 
             GetCommandInvocationResponse invocationResponse = ssmClient.getCommandInvocation(invocationRequest);
 
-            // 명령 결과 출력
             String output = invocationResponse.standardOutputContent();
             System.out.println("Command Output:");
             System.out.println(output);
 
-            // 결과에 맞는 형태로 출력
             if (output.contains("Total for query: 0 jobs")) {
                 System.out.println("No jobs are currently in the queue.");
             }
@@ -407,7 +377,7 @@ public class Main {
         }
     }
 
-
+    // 오토스케일링 기능
     public static void autoScaling() {
         System.out.println("Starting auto-scaling...");
 
@@ -420,18 +390,22 @@ public class Main {
         String[] results = scriptResult.split("\n");
 
         try {
-            int slots = Integer.parseInt(results[0].trim());
-            int jobs = Integer.parseInt(results[1].trim());
-            List<String> assignedNodes = Arrays.asList(results[2].trim().split(","));
+            int slots = Integer.parseInt(results[0].trim()); // 현재 사용 가능한 슬롯 수
+            int jobs = Integer.parseInt(results[1].trim()); // 대기 중인 작업 수
+            List<String> assignedNodes = Arrays.asList(results[2].trim().split(",")); // 할당된 노드 목록
 
-            // 스케일링 로직
+            // 스케일 아웃 조건
             if (jobs > slots) {
                 System.out.println("Scale out: Creating a new instance...");
                 createInstance("ami-064d68c52313d6d29");
-            } else if (jobs < slots) {
+            }
+            // 스케일 인 조건
+            else if (jobs < slots) {
                 System.out.println("Scale in: Stopping unnecessary instances...");
                 scaleInInstances(assignedNodes);
-            } else {
+            }
+            // 안정 상태
+            else {
                 System.out.println("System stable: No scaling required.");
             }
         } catch (Exception e) {
@@ -440,8 +414,9 @@ public class Main {
 
     }
 
+    // SSM을 통해 원격 스크립트 실행
     private static String executeSSMScript(String scriptPath) {
-        String instanceId = "i-0e2da5fd0cf96ff18"; // EC2 인스턴스 ID
+        String instanceId = "i-0e2da5fd0cf96ff18";
 
         try {
             // SSM 명령 요청 생성
@@ -452,15 +427,11 @@ public class Main {
                     .build();
 
             SendCommandResponse result = ssm.sendCommand(sendCommandRequest);
-            String commandId = result.command().commandId();  // .command()를 먼저 호출한 뒤 명령 ID 추출
+            String commandId = result.command().commandId(); // 명령 ID 가져오기
             System.out.println("Command ID: " + commandId);
 
-            // 명령 수신 대기 (2초)
             TimeUnit.SECONDS.sleep(2);
 
-
-
-            // 결과를 기다리고 반환
             return getSSMCommandResult(commandId, instanceId);
 
         } catch (Exception e) {
@@ -469,13 +440,13 @@ public class Main {
         }
     }
 
-
+    //  SSM 명령 실행 결과를 가져옴
     private static String getSSMCommandResult(String commandId, String instanceId) {
         try {
-            // 최대 5분 동안 결과를 기다림 (필요에 따라 조정 가능)
+
             long startTime = System.currentTimeMillis();
             while (true) {
-                // 명령 실행 상태 조회
+
                 GetCommandInvocationRequest request = GetCommandInvocationRequest.builder()
                         .commandId(commandId)
                         .instanceId(instanceId)
@@ -484,19 +455,18 @@ public class Main {
                 GetCommandInvocationResponse response = ssm.getCommandInvocation(request);
 
                 if (response.status() == CommandInvocationStatus.SUCCESS) {
-                    return response.standardOutputContent(); // 성공 시 출력
+                    return response.standardOutputContent();
                 } else if (response.status() == CommandInvocationStatus.FAILED) {
                     System.err.println("Command failed: " + response.standardErrorContent());
                     return "";
                 }
 
-                // 명령이 끝날 때까지 기다림
                 if (System.currentTimeMillis() - startTime > TimeUnit.MINUTES.toMillis(5)) {
                     System.err.println("Command timeout after 5 minutes.");
                     return "";
                 }
 
-                TimeUnit.SECONDS.sleep(1); // 1초 대기 후 재시도
+                TimeUnit.SECONDS.sleep(1);
             }
         } catch (Exception e) {
             System.err.println("Error while fetching command result: " + e.getMessage());
@@ -504,6 +474,7 @@ public class Main {
         }
     }
 
+    // 사용되지 않는 인스턴스 식별 및 종료
     private static void scaleInInstances(List<String> assignedNodes) {
         DescribeInstancesRequest describeInstancesRequest = DescribeInstancesRequest.builder()
                 .filters(Filter.builder()
@@ -527,7 +498,7 @@ public class Main {
             String instanceId = instance.instanceId();
             String privateIP = instance.privateIpAddress();
 
-            // Main 노드와 Assigned 노드를 제외하고 처리
+
             if (!assignedNodes.contains(privateIP)
                     && !instanceId.equals("i-0e2da5fd0cf96ff18")  // Main 노드 제외
                     && !stoppedInstances.contains(instanceId)) {
@@ -536,7 +507,4 @@ public class Main {
             }
         }
     }
-
-
-
 }
