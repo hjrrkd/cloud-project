@@ -202,8 +202,7 @@ public class Main {
             StopInstancesResponse response = ec2.stopInstances(request);
 
             System.out.printf("Successfully stopped instance: %s\n", instanceId);
-            System.out.printf("Current state: %s\n",
-                    response.stoppingInstances().get(0).currentState().name());
+
         } catch (Exception e) {
             System.out.printf("Failed to stop instance: %s\n", e.getMessage());
         }
@@ -414,7 +413,7 @@ public class Main {
 
     }
 
-    // SSM을 통해 원격 스크립트 실행
+    // SSM을 통해 스크립트를 원격으로 실행
     private static String executeSSMScript(String scriptPath) {
         String instanceId = "i-0e2da5fd0cf96ff18";
 
@@ -428,7 +427,7 @@ public class Main {
 
             SendCommandResponse result = ssm.sendCommand(sendCommandRequest);
             String commandId = result.command().commandId(); // 명령 ID 가져오기
-            System.out.println("Command ID: " + commandId);
+            //System.out.println("Command ID: " + commandId);
 
             TimeUnit.SECONDS.sleep(2);
 
@@ -498,9 +497,9 @@ public class Main {
             String instanceId = instance.instanceId();
             String privateIP = instance.privateIpAddress();
 
-
+            // Main 노드와 할당된 노드를 제외하고 처리
             if (!assignedNodes.contains(privateIP)
-                    && !instanceId.equals("i-0e2da5fd0cf96ff18")  // Main 노드 제외
+                    && !instanceId.equals("i-0e2da5fd0cf96ff18")
                     && !stoppedInstances.contains(instanceId)) {
                 stopInstance(instanceId);
                 stoppedInstances.add(instanceId); // 중지된 인스턴스 기록
