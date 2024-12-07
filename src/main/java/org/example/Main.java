@@ -407,67 +407,44 @@ public class Main {
         }
     }
 
-    /*private static void sendSSMCommand(String instanceId, String command) throws Exception {
-        System.out.println("Executing command on instance " + instanceId);
-
-        // 명령어를 리스트로 생성
-        List<String> commands = new ArrayList<>();
-        commands.add(command);
-
-        // 파라미터를 HashMap으로 설정
-        HashMap<String, List<String>> parameters = new HashMap<>();
-        parameters.put("commands", commands);
-
-        // SendCommandRequest 생성
-        SendCommandRequest ssmRequest = SendCommandRequest.builder()
-                .instanceIds(instanceId) // EC2 인스턴스 ID
-                .documentName("AWS-RunShellScript") // 사용할 SSM 문서
-                .parameters(parameters) // 명령어 파라미터
-                .build();
-
-        // 명령어 실행
-        SendCommandResponse ssmResponse = ssm.sendCommand(ssmRequest);
-
-        // 실행된 명령어의 commandId 출력
-        System.out.println("Command executed with command ID: " + ssmResponse.command().commandId());
-    }*/
-
 
     public static void autoScaling() {
         System.out.println("Starting auto-scaling...");
 
-        try {
-            // SSM을 통해 쉘 스크립트 실행
-            String scriptResult = executeSSMScript("/home/ec2-user/autoscaling.sh");  // SSM 경로로 변경
-            String[] results = scriptResult.split("\n");
+        String scriptResult = executeSSMScript("/home/ec2-user/autoscaling.sh");
+        if (scriptResult == null || scriptResult.isEmpty()) {
+            System.err.println("Error: Script result is empty. Check SSM command execution.");
+            return;
+        }
 
+        String[] results = scriptResult.split("\n");
+
+        try {
             int slots = Integer.parseInt(results[0].trim());
             int jobs = Integer.parseInt(results[1].trim());
             List<String> assignedNodes = Arrays.asList(results[2].trim().split(","));
 
-            // 스케일 아웃: 잡이 슬롯보다 많으면 인스턴스 생성
+            // 스케일링 로직
             if (jobs > slots) {
                 System.out.println("Scale out: Creating a new instance...");
-                createInstance("ami-064d68c52313d6d29"); // worker 이미지 기반 인스턴스 생성
-            }
-            // 스케일 인: 슬롯보다 잡이 적으면 불필요한 인스턴스 종료
-            else if (jobs < slots) {
+                createInstance("ami-064d68c52313d6d29");
+            } else if (jobs < slots) {
                 System.out.println("Scale in: Stopping unnecessary instances...");
-                scaleInInstances(assignedNodes);  // scaleInInstances는 리스트에서 인스턴스를 종료하는 함수
-            }
-            // 시스템 안정: 스케일링 필요 없음
-            else {
+                scaleInInstances(assignedNodes);
+            } else {
                 System.out.println("System stable: No scaling required.");
             }
         } catch (Exception e) {
-            System.out.println("Error in auto-scaling: " + e.getMessage());
+            System.err.println("Error parsing script result: " + e.getMessage());
         }
+
     }
 
     private static String executeSSMScript(String scriptPath) {
         String instanceId = "i-0e2da5fd0cf96ff18"; // EC2 인스턴스 ID
+
         try {
-            // SSM 명령 요청
+            // SSM 명령 요청 생성
             SendCommandRequest sendCommandRequest = SendCommandRequest.builder()
                     .instanceIds(instanceId)
                     .documentName("AWS-RunShellScript")
@@ -475,15 +452,23 @@ public class Main {
                     .build();
 
             SendCommandResponse result = ssm.sendCommand(sendCommandRequest);
-            String commandId = result.command().commandId(); // 명령 ID 추출
+            String commandId = result.command().commandId();  // .command()를 먼저 호출한 뒤 명령 ID 추출
+            System.out.println("Command ID: " + commandId);
+
+            // 명령 수신 대기 (2초)
+            TimeUnit.SECONDS.sleep(2);
+
+
 
             // 결과를 기다리고 반환
             return getSSMCommandResult(commandId, instanceId);
+
         } catch (Exception e) {
             System.err.println("Failed to execute script: " + e.getMessage());
             return "";
         }
     }
+
 
     private static String getSSMCommandResult(String commandId, String instanceId) {
         try {
